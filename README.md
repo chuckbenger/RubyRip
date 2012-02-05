@@ -1,2 +1,3 @@
-<h1>RubyRip</h1>
+   RubyRip
+=============
 Download Shoutcast Streams using Ruby!
