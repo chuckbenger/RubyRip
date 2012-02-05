@@ -96,6 +96,7 @@ class Ripper
           
           if attribute.include? "StreamTitle"
             @current_song = attribute.split("=")[1].gsub(@BADCHARS,"_")         #Parses the file name and removes bad characters
+            puts "Downloading => #{@current_song}"
             @file_writer  = File.new(@output_dir + @current_song + ".mp3","wb") #Opens a new file to write
           end
         end
@@ -130,6 +131,11 @@ class Ripper
 end
 
 
-ripper = Ripper.new("208.43.81.168",8745,"/home/chuck/")
-ripper.connect
+if ARGV.length == 3
+  ripper = Ripper.new(ARGV[0],ARGV[1],ARGV[2])
+  ripper.connect
+else
+  puts "Please enter the arguments as follows(address,port,output directory)"
+end
+
 
