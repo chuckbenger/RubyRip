@@ -22,10 +22,13 @@ require 'socket'
 
 class Ripper
   
-  def initialize(address,port,output_dir)
+   
+  
+  #Initializer for Ripper
+  def initialize(output_dir)
     
-    @address      = address                       #Address to connect to
-    @port         = port                          #Port number to connect to   
+    @address      = ""                            #Address to connect to
+    @port         = 0                             #Port number to connect to   
     @output_dir   = output_dir                    #Output directory for downloads
     @BUFFER_SIZE  = 1024                          #Amount to buffer before processing
     @LENGTH_SCALER= 16                            #Amount to scale length field by
@@ -41,16 +44,43 @@ class Ripper
     
   end
   
-  #Connects to the server
-  def connect   
-    @connection = TCPSocket.new(@address,@port) #Connects to the server
-    send_metadata_request
-    receive
+  #Connects to the server using given ip address and port number
+  def connect(address, port)
+    
+    #If ip or port number are invalid display error message and return
+    (puts "IP address #{address} is invalid"   ;return)  if !validate_ip address
+    (puts "Port number #{port} is out of range";return)  if !validate_port port
+    
+    @address    = address
+    @port       = port
+    
+    begin
+      @connection = TCPSocket.new(@address,@port) #Connects to the server
+      send_metadata_request #Sends a http meta data request to server
+      receive               #Starts receiveing data
+    rescue Exception => msg
+      puts "Error connecting to #{@address}:#{@port} #{msg}"
+    end
+  end
+  
+  #Disconnect from the stream
+  def disconnect
+    @connection.close if !@connection.closed?
+  end
+  
+  #Basic ip address validation
+  def validate_ip address
+   (address =~ /^(\d{1,3}\.){3}\d{1,3}$/) != nil
+  end
+  
+  #Port number within range validation
+  def validate_port port
+    (port > 0 && port <= 65535)
   end
   
   private
   
-  #Sends a meta data request to the server
+  #Sends a http request to the server to initialize streaming
   def send_metadata_request
      httpReq = "GET / HTTP/1.1\r\nHost: #{@address}\r\nConnection: close\r\n" +
                "icy-metadata: 1\r\ntransferMode.dlna.org: Streaming\n\r\nHEAD / HTTP/1.1\r\n" +
@@ -59,22 +89,28 @@ class Ripper
      @connection.puts httpReq
   end
   
+  #Receives incoming data from server
   def receive
     
-    while line = @connection.gets
+    begin
+       while line = @connection.gets
       
-      line.each_byte do |b|
+        line.each_byte do |b|
         
-        if @offset >= @BUFFER_SIZE
-          @counter += @offset
-          proccess_data #Process the buffer
-          @offset = 0
+          #If the current offset if greater than the bufer size
+          #process the current data and reset the counter
+          if @offset >= @BUFFER_SIZE
+            @counter += @offset
+            proccess_data #Process the buffer
+            @offset = 0
+          end
+        
+          @buffer[@offset] = b
+         @offset += 1
         end
-        
-        @buffer[@offset] = b
-        @offset += 1
-        
       end
+    rescue Exception => msg
+      puts "Error receiving data => #{msg}"
     end
   end
   
@@ -86,7 +122,7 @@ class Ripper
     if @counter >= @metaint
       
       position = @offset - (@counter - @metaint)        #Position field
-      length   = @buffer[position + 1] * @LENGTH_SCALER #Lenth of meta data field
+      length   = @buffer[position + 1] * @LENGTH_SCALER #Lenth of meta data field 
       
       if length > 0
         
@@ -96,13 +132,13 @@ class Ripper
           
           if attribute.include? "StreamTitle"
             @current_song = attribute.split("=")[1].gsub(@BADCHARS,"_")         #Parses the file name and removes bad characters
-            puts "Downloading => #{@current_song}"
             @file_writer  = File.new(@output_dir + @current_song + ".mp3","wb") #Opens a new file to write
+            puts "Downloading => #{@current_song}"
           end
         end
       end
       
-      #Writes all data in the buffer that isn't meta data
+      #Writes all data at the beginning of the buffer and data after the metadata
       if @file_writer != nil
         @file_writer.write(@buffer[0..position].pack("C*"))                                                 
         @file_writer.write(@buffer[(position + length + 1)..(@offset - (position + length) - 1)].pack("C*"))
@@ -131,11 +167,8 @@ class Ripper
 end
 
 
-if ARGV.length == 3
-  ripper = Ripper.new(ARGV[0],ARGV[1],ARGV[2])
-  ripper.connect
-else
-  puts "Please enter the arguments as follows(address,port,output directory)"
-end
+ripper = Ripper.new("/home/chuck/Music/s/")
+ripper.connect "216.18.227.251",8000
+
 
 
