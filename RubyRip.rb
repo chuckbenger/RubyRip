@@ -48,8 +48,9 @@ class Ripper
   def connect(address, port)
     
     #If ip or port number are invalid display error message and return
-    (puts "IP address #{address} is invalid"   ;return)  if !validate_ip address
-    (puts "Port number #{port} is out of range";return)  if !validate_port port
+    (puts "IP address #{address} is invalid"   ;return)     if !validate_ip address
+    (puts "Port number #{port} is out of range";return)     if !validate_port port
+    (puts "Directory #{@output_dir} doesn't exist"; return) if !validate_directory
     
     @address    = address
     @port       = port
@@ -76,6 +77,11 @@ class Ripper
   #Port number within range validation
   def validate_port port
     (port > 0 && port <= 65535)
+  end
+
+  #Validates to see if a directory exists
+  def validate_directory
+     File.directory?(@output_dir)
   end
   
   private
